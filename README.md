@@ -163,7 +163,51 @@ print(decode_predictions(infa_rslts["output"], top=5)[0])
 保存脚本**infer_resnet50_perf.py**如下：
 
 ```python
-import osimport timeimport numpy as npimport tensorflow as tffrom tensorflow.keras.preprocessing import imagefrom tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictions# added for utilizing 4 neuron coresos.environ['NEURONCORE_GROUP_SIZES'] = "4x1"# Load modelsmodel_dir = 'resnet50'predictor_cpu = tf.contrib.predictor.from_saved_model(model_dir)compiled_model_dir = 'resnet50_neuron'predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)# Create input from imageimg_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))img_arr = image.img_to_array(img_sgl)img_arr2 = np.expand_dims(img_arr, axis=0)img_arr3 = preprocess_input(img_arr2)model_feed_dict={'input': img_arr3}# warmupinfa_rslts = predictor_cpu(model_feed_dict)infa_rslts = predictor_inferentia(model_feed_dict)num_inferences = 2000# Run inference on CPUs, Display resultsstart = time.time()for _ in range(num_inferences):    infa_rslts = predictor_cpu(model_feed_dict)elapsed_time = time.time() - startprint('By CPU         - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))# Run inference on Neuron Cores, Display resultsstart = time.time()for _ in range(num_inferences):    infa_rslts = predictor_inferentia(model_feed_dict)elapsed_time = time.time() - startprint('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
+import os
+import time
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictions
+
+# added for utilizing 4 neuron cores
+os.environ['NEURONCORE_GROUP_SIZES'] = "4x1"
+
+# Load models
+model_dir = 'resnet50'
+predictor_cpu = tf.contrib.predictor.from_saved_model(model_dir)
+compiled_model_dir = 'resnet50_neuron'
+predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)
+
+# Create input from image
+img_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))
+img_arr = image.img_to_array(img_sgl)
+img_arr2 = np.expand_dims(img_arr, axis=0)
+img_arr3 = preprocess_input(img_arr2)
+
+model_feed_dict={'input': img_arr3}
+
+# warmup
+infa_rslts = predictor_cpu(model_feed_dict)
+infa_rslts = predictor_inferentia(model_feed_dict)
+
+num_inferences = 2000
+
+# Run inference on CPUs, Display results
+start = time.time()
+for _ in range(num_inferences):
+    infa_rslts = predictor_cpu(model_feed_dict)
+elapsed_time = time.time() - start
+
+print('By CPU         - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
+
+# Run inference on Neuron Cores, Display results
+start = time.time()
+for _ in range(num_inferences):
+    infa_rslts = predictor_inferentia(model_feed_dict)
+elapsed_time = time.time() - start
+
+print('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
 ```
 
 执行结果如下：
@@ -189,7 +233,62 @@ neuron-top - 10:11:40Models: 4 loaded, 4 running. NeuronCores: 4 used.0000:00:1c
 使用如下脚本**infer_resnet50_perf2.py**：
 
 ```python
-import osimport timeimport numpy as npimport tensorflow as tffrom tensorflow.keras.preprocessing import imagefrom tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictionsfrom concurrent import futures# added for utilizing 4 neuron coresos.environ['NEURONCORE_GROUP_SIZES'] = '4x1'# Load modelsmodel_dir = 'resnet50'predictor_cpu = tf.contrib.predictor.from_saved_model(model_dir)compiled_model_dir = 'resnet50_neuron'predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)# Create input from imageimg_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))img_arr = image.img_to_array(img_sgl)img_arr2 = np.expand_dims(img_arr, axis=0)img_arr3 = preprocess_input(img_arr2)model_feed_dict={'input': img_arr3}# warmupinfa_rslts = predictor_cpu(model_feed_dict)infa_rslts = predictor_inferentia(model_feed_dict)num_inferences = 3000# Run inference on CPUs, Display resultsstart = time.time()with futures.ThreadPoolExecutor(8) as exe:    fut_list = []    for _ in range (num_inferences):        fut = exe.submit(predictor_cpu, model_feed_dict)        fut_list.append(fut)    for fut in fut_list:        infa_rslts = fut.result()elapsed_time = time.time() - startprint('By CPU         - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))# Run inference on Neuron Cores, Display resultsstart = time.time()with futures.ThreadPoolExecutor(16) as exe:    fut_list = []    for _ in range (num_inferences):        fut = exe.submit(predictor_inferentia, model_feed_dict)        fut_list.append(fut)    for fut in fut_list:        infa_rslts = fut.result()elapsed_time = time.time() - startprint('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
+import os
+import time
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictions
+from concurrent import futures
+
+# added for utilizing 4 neuron cores
+os.environ['NEURONCORE_GROUP_SIZES'] = '4x1'
+
+# Load models
+model_dir = 'resnet50'
+predictor_cpu = tf.contrib.predictor.from_saved_model(model_dir)
+compiled_model_dir = 'resnet50_neuron'
+predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)
+
+# Create input from image
+img_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))
+img_arr = image.img_to_array(img_sgl)
+img_arr2 = np.expand_dims(img_arr, axis=0)
+img_arr3 = preprocess_input(img_arr2)
+
+model_feed_dict={'input': img_arr3}
+
+# warmup
+infa_rslts = predictor_cpu(model_feed_dict)
+infa_rslts = predictor_inferentia(model_feed_dict)
+
+num_inferences = 3000
+
+# Run inference on CPUs, Display results
+start = time.time()
+with futures.ThreadPoolExecutor(8) as exe:
+    fut_list = []
+    for _ in range (num_inferences):
+        fut = exe.submit(predictor_cpu, model_feed_dict)
+        fut_list.append(fut)
+    for fut in fut_list:
+        infa_rslts = fut.result()
+elapsed_time = time.time() - start
+
+print('By CPU         - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
+
+# Run inference on Neuron Cores, Display results
+start = time.time()
+with futures.ThreadPoolExecutor(16) as exe:
+    fut_list = []
+    for _ in range (num_inferences):
+        fut = exe.submit(predictor_inferentia, model_feed_dict)
+        fut_list.append(fut)
+    for fut in fut_list:
+        infa_rslts = fut.result()
+elapsed_time = time.time() - start
+
+print('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
 ```
 
 输出结果如下：
@@ -217,7 +316,19 @@ Neuron是预先编译器，也就是说在编译时需要指定input tensor shap
 脚本如下**compile_resnet50_batch.py**：
 
 ```python
-import shutilimport tensorflow.neuron as tfnmodel_dir = 'resnet50'for batch_size in [1, 2, 4, 8, 16]:# Prepare export directory (old one removed)    compiled_model_dir = 'resnet50_neuron_batch' + str(batch_size)    shutil.rmtree(compiled_model_dir, ignore_errors=True)# Compile using Neuron    tfn.saved_model.compile(model_dir, compiled_model_dir, batch_size=batch_size, dynamic_batch_size=True)
+import shutil
+import tensorflow.neuron as tfn
+
+model_dir = 'resnet50'
+
+for batch_size in [1, 2, 4, 8, 16]:
+
+# Prepare export directory (old one removed)
+    compiled_model_dir = 'resnet50_neuron_batch' + str(batch_size)
+    shutil.rmtree(compiled_model_dir, ignore_errors=True)
+
+# Compile using Neuron
+    tfn.saved_model.compile(model_dir, compiled_model_dir, batch_size=batch_size, dynamic_batch_size=True)
 ```
 
 在该脚本中，我们一口气编译了5个模型，batch size分别为1，2，4，8，16，执行该脚本，我们将获得5个目录，存储不同batch size的模型。
@@ -225,7 +336,21 @@ import shutilimport tensorflow.neuron as tfnmodel_dir = 'resnet50'for batch_size
 除了以上在 **tfn.saved_model.compile()** 中设定batch size方式外，我们还可以用如下方式 **new_batch_compile.py**：(该模型的input tensor Name为**input_1:0**，可以通过 *saved_model_cli* 得到该模型的input，output tensor相关信息)
 
 ```python
-import shutilimport tensorflow.neuron as tfnimport numpy as npmodel_dir = 'resnet50'for batch_size in [1, 2, 4, 8, 16]:		model_feed_dict = {'input_1:0': np.zeros([batch_size, 224, 224, 3], dtype='float16')}# Prepare export directory (old one removed)		compiled_model_dir = 'resnet50_neuron_batch' + str(batch_size)		shutil.rmtree(compiled_model_dir, ignore_errors=True)# Compile using Neuron    tfn.saved_model.compile(model_dir, compiled_model_dir, feed_dict=model_feed_dict, dynamic_batch_size=True)
+import shutil
+import tensorflow.neuron as tfn
+import numpy as np
+
+model_dir = 'resnet50'
+
+for batch_size in [1, 2, 4, 8, 16]:
+		model_feed_dict = {'input_1:0': np.zeros([batch_size, 224, 224, 3], dtype='float16')}
+
+# Prepare export directory (old one removed)
+		compiled_model_dir = 'resnet50_neuron_batch' + str(batch_size)
+		shutil.rmtree(compiled_model_dir, ignore_errors=True)
+
+# Compile using Neuron
+    tfn.saved_model.compile(model_dir, compiled_model_dir, feed_dict=model_feed_dict, dynamic_batch_size=True)
 ```
 
 上面脚本中，我们通过设置 *feed_dict* 的参数值，在该值中指定了input tensor的shape
@@ -241,7 +366,52 @@ import osimport timeimport numpy as npimport tensorflow as tffrom tensorflow.ker
 执行该脚本，获得如下结果：
 
 ```shell
-By Neuron Core - num_inferences:  1000[images], elapsed_time:  1.32[sec], Throughput:  757.93[images/sec]batch_size: 2, USER_BATCH_SIZE: 2By Neuron Core - num_inferences:  2000[images], elapsed_time:  1.45[sec], Throughput: 1378.71[images/sec]batch_size: 4, USER_BATCH_SIZE: 4By Neuron Core - num_inferences:  4000[images], elapsed_time:  2.69[sec], Throughput: 1489.27[images/sec]batch_size: 8, USER_BATCH_SIZE: 8By Neuron Core - num_inferences:  8000[images], elapsed_time:  5.31[sec], Throughput: 1507.61[images/sec]batch_size: 16, USER_BATCH_SIZE: 16By Neuron Core - num_inferences: 16000[images], elapsed_time: 10.97[sec], Throughput: 1459.13[images/sec]
+import os
+import time
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictions
+from concurrent import futures
+
+# added for utilizing 4 neuron cores
+os.environ['NEURONCORE_GROUP_SIZES'] = '4x1'
+
+# measure the performance per batch size
+for batch_size in [1, 2, 4, 8, 16]:
+    USER_BATCH_SIZE = batch_size
+    print("batch_size: {}, USER_BATCH_SIZE: {}". format(batch_size, USER_BATCH_SIZE))
+
+# Load model
+    compiled_model_dir = 'resnet50_neuron_batch' + str(batch_size)
+    predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)
+
+# Create input from image
+    img_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))
+    img_arr = image.img_to_array(img_sgl)
+    img_arr2 = np.expand_dims(img_arr, axis=0)
+    img_arr3 = preprocess_input(np.repeat(img_arr2, USER_BATCH_SIZE, axis=0))
+
+    model_feed_dict={'input': img_arr3}
+
+# warmup
+    infa_rslts = predictor_inferentia(model_feed_dict) 
+
+    num_loops = 1000
+    num_inferences = num_loops * USER_BATCH_SIZE
+
+# Run inference on Neuron Cores, Display results
+    start = time.time()
+    with futures.ThreadPoolExecutor(8) as exe:
+        fut_list = []
+        for _ in range (num_loops):
+            fut = exe.submit(predictor_inferentia, model_feed_dict)
+            fut_list.append(fut)
+        for fut in fut_list:
+            infa_rslts = fut.result()
+    elapsed_time = time.time() - start
+
+    print('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
 ```
 
 可见随着batch size的提高，吞吐同样有提高，但是到一定性能后，将不在提升，即 batch size 也**不是越大越好**。
@@ -261,13 +431,59 @@ neuroncore-pipeline-cores = 4 * round( number-of-weights-in-model/(2 * 10**7) )
 创建如下脚本**compile_resnet50_pipeline.py**：
 
 ```python
-import shutilimport tensorflow.neuron as tfnmodel_dir = 'resnet50'# Prepare export directory (old one removed)compiled_model_dir = 'resnet50_neuron_pipeline'shutil.rmtree(compiled_model_dir, ignore_errors=True)tfn.saved_model.compile(model_dir, compiled_model_dir, compiler_args=['--neuroncore-pipeline-cores', '8'])
+import shutil
+import tensorflow.neuron as tfn
+
+model_dir = 'resnet50'
+# Prepare export directory (old one removed)
+compiled_model_dir = 'resnet50_neuron_pipeline'
+shutil.rmtree(compiled_model_dir, ignore_errors=True)
+
+tfn.saved_model.compile(model_dir, compiled_model_dir, compiler_args=['--neuroncore-pipeline-cores', '8'])
 ```
 
 执行如上脚本完成编译后，用如下推理的脚本**infer_resnet50_pipeline.py**：
 
 ```python
-import osimport timeimport numpy as npimport tensorflow as tffrom tensorflow.keras.preprocessing import imagefrom tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictionsfrom concurrent import futures# added for utilizing neuron coresos.environ['NEURONCORE_GROUP_SIZES'] = '8'USER_BATCH_SIZE = 1compiled_model_dir = 'resnet50_neuron_pipeline'predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)# Create input from imageimg_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))img_arr = image.img_to_array(img_sgl)img_arr2 = np.expand_dims(img_arr, axis=0)img_arr3 = preprocess_input(np.repeat(img_arr2, USER_BATCH_SIZE, axis=0))model_feed_dict={'input': img_arr3}# warmupinfa_rslts = predictor_inferentia(model_feed_dict)num_inferences = 8000# Run inference on Neuron Cores, Display resultsstart = time.time()with futures.ThreadPoolExecutor(8) as exe:    fut_list = []    for _ in range (num_inferences):        fut = exe.submit(predictor_inferentia, model_feed_dict)        fut_list.append(fut)    for fut in fut_list:        infa_rslts = fut.result()elapsed_time = time.time() - startprint('By Neuron Core Pipeline - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences*USER_BATCH_SIZE, elapsed_time, num_inferences*USER_BATCH_SIZE/ elapsed_time))
+import os
+import time
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictions
+from concurrent import futures
+
+# added for utilizing neuron cores
+os.environ['NEURONCORE_GROUP_SIZES'] = '8'
+
+USER_BATCH_SIZE = 1
+
+compiled_model_dir = 'resnet50_neuron_pipeline'
+predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)
+# Create input from image
+img_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))
+img_arr = image.img_to_array(img_sgl)
+img_arr2 = np.expand_dims(img_arr, axis=0)
+img_arr3 = preprocess_input(np.repeat(img_arr2, USER_BATCH_SIZE, axis=0))
+
+model_feed_dict={'input': img_arr3}
+
+# warmup
+infa_rslts = predictor_inferentia(model_feed_dict)
+
+num_inferences = 8000
+# Run inference on Neuron Cores, Display results
+start = time.time()
+with futures.ThreadPoolExecutor(8) as exe:
+    fut_list = []
+    for _ in range (num_inferences):
+        fut = exe.submit(predictor_inferentia, model_feed_dict)
+        fut_list.append(fut)
+    for fut in fut_list:
+        infa_rslts = fut.result()
+elapsed_time = time.time() - start
+
+print('By Neuron Core Pipeline - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences*USER_BATCH_SIZE, elapsed_time, num_inferences*USER_BATCH_SIZE/ elapsed_time))
 ```
 
 执行该脚本输出结果如下：
@@ -311,7 +527,32 @@ Successfully loaded servable version {name: resnet50_inf1_serve version: 1}Runni
 接下来执行如下客户端脚本，该客户端脚本将向前面启动的model Server发送推理请求，**tfs_client.py**：
 
 ```python
-import numpy as npimport grpcimport tensorflow as tffrom tensorflow.keras.preprocessing import imagefrom tensorflow.keras.applications.resnet50 import preprocess_inputfrom tensorflow.keras.applications.resnet50 import decode_predictionsfrom tensorflow_serving.apis import predict_pb2from tensorflow_serving.apis import prediction_service_pb2_grpctf.keras.backend.set_image_data_format('channels_last')if __name__ == '__main__':    channel = grpc.insecure_channel('localhost:8500')    stub = prediction_service_pb2_grpc.PredictionServiceStub(channel)    img_file = tf.keras.utils.get_file(        "./kitten_small.jpg",        "https://raw.githubusercontent.com/awslabs/mxnet-model-server/master/docs/images/kitten_small.jpg")    img = image.load_img(img_file, target_size=(224, 224))    img_array = preprocess_input(image.img_to_array(img)[None, ...])    request = predict_pb2.PredictRequest()    request.model_spec.name = 'resnet50_inf1_serve'    request.inputs['input'].CopyFrom(        tf.contrib.util.make_tensor_proto(img_array, shape=img_array.shape))    result = stub.Predict(request)    prediction = tf.make_ndarray(result.outputs['output'])    print(decode_predictions(prediction))
+import numpy as np
+import grpc
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import preprocess_input
+from tensorflow.keras.applications.resnet50 import decode_predictions
+from tensorflow_serving.apis import predict_pb2
+from tensorflow_serving.apis import prediction_service_pb2_grpc
+
+tf.keras.backend.set_image_data_format('channels_last')
+
+if __name__ == '__main__':
+    channel = grpc.insecure_channel('localhost:8500')
+    stub = prediction_service_pb2_grpc.PredictionServiceStub(channel)
+    img_file = tf.keras.utils.get_file(
+        "./kitten_small.jpg",
+        "https://raw.githubusercontent.com/awslabs/mxnet-model-server/master/docs/images/kitten_small.jpg")
+    img = image.load_img(img_file, target_size=(224, 224))
+    img_array = preprocess_input(image.img_to_array(img)[None, ...])
+    request = predict_pb2.PredictRequest()
+    request.model_spec.name = 'resnet50_inf1_serve'
+    request.inputs['input'].CopyFrom(
+        tf.contrib.util.make_tensor_proto(img_array, shape=img_array.shape))
+    result = stub.Predict(request)
+    prediction = tf.make_ndarray(result.outputs['output'])
+    print(decode_predictions(prediction))
 ```
 
 执行结果如下，符合预期：
