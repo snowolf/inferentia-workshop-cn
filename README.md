@@ -213,7 +213,8 @@ print('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec],
 执行结果如下：
 
 ```python
-By CPU         - num_inferences:  2000[images], elapsed_time: 60.97[sec], Throughput:   32.80[images/sec]By Neuron Core - num_inferences:  2000[images], elapsed_time:  7.76[sec], Throughput:  257.59[images/sec]
+By CPU         - num_inferences:  2000[images], elapsed_time: 60.97[sec], Throughput:   32.80[images/sec]
+By Neuron Core - num_inferences:  2000[images], elapsed_time:  7.76[sec], Throughput:  257.59[images/sec]
 ```
 
 在如上脚本执行过程中，我们可以新开一个terminal，查看Neuron Core的使用率：
@@ -225,7 +226,14 @@ neuron-top
 结果如下：
 
 ```shell
-neuron-top - 10:11:40Models: 4 loaded, 4 running. NeuronCores: 4 used.0000:00:1c.0 Utilizations: NC0 0.00%, NC1 0.00%, NC2 0.00%, NC3 0.00%, Model ID   Device    NeuronCore%   Device Mem   Host Mem   Model Name10012      nd0:nc3   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c78073310011      nd0:nc2   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c78073310010      nd0:nc1   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c78073310009      nd0:nc0   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+neuron-top - 10:11:40
+Models: 4 loaded, 4 running. NeuronCores: 4 used.
+0000:00:1c.0 Utilizations: NC0 0.00%, NC1 0.00%, NC2 0.00%, NC3 0.00%, 
+Model ID   Device    NeuronCore%   Device Mem   Host Mem   Model Name
+10012      nd0:nc3   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+10011      nd0:nc2   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+10010      nd0:nc1   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+10009      nd0:nc0   18.00            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
 ```
 
 可见NeuronCore的使用率并不高，接下来我们通过Python多线程的方式加大并发以提高NeuronCore的使用率。
@@ -294,13 +302,21 @@ print('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec],
 输出结果如下：
 
 ```shell
-By CPU         - num_inferences:  1000[images], elapsed_time: 13.13[sec], Throughput:   76.15[images/sec]By Neuron Core - num_inferences:  1000[images], elapsed_time:  1.26[sec], Throughput:  794.77[images/sec]
+By CPU         - num_inferences:  1000[images], elapsed_time: 13.13[sec], Throughput:   76.15[images/sec]
+By Neuron Core - num_inferences:  1000[images], elapsed_time:  1.26[sec], Throughput:  794.77[images/sec]
 ```
 
 同时在运行该脚本的时候在另一个Terminal窗口下查看NeuronCore的使用率：
 
 ```shell
-neuron-top - 10:16:24Models: 4 loaded, 4 running. NeuronCores: 4 used.0000:00:1c.0 Utilizations: NC0 0.00%, NC1 0.00%, NC2 0.00%, NC3 0.00%, Model ID   Device    NeuronCore%   Device Mem   Host Mem   Model Name10012      nd0:nc3   99.77            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c78073310011      nd0:nc2   99.68            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c78073310010      nd0:nc1   99.89            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c78073310009      nd0:nc0   99.98            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+neuron-top - 10:16:24
+Models: 4 loaded, 4 running. NeuronCores: 4 used.
+0000:00:1c.0 Utilizations: NC0 0.00%, NC1 0.00%, NC2 0.00%, NC3 0.00%, 
+Model ID   Device    NeuronCore%   Device Mem   Host Mem   Model Name
+10012      nd0:nc3   99.77            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+10011      nd0:nc2   99.68            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+10010      nd0:nc1   99.89            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
+10009      nd0:nc0   99.98            50 MB         1 MB    p/tmpvdz0l2ob/neuron_op_d6f098c01c780733
 ```
 
 可见利用率基本打满，并且此时的throughput高达794 images/sec.
@@ -360,12 +376,6 @@ for batch_size in [1, 2, 4, 8, 16]:
 接下来我们看下不同batch size时推理的性能，**infer_resnet50_batch.py**：
 
 ```python
-import osimport timeimport numpy as npimport tensorflow as tffrom tensorflow.keras.preprocessing import imagefrom tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictionsfrom concurrent import futures# added for utilizing 4 neuron coresos.environ['NEURONCORE_GROUP_SIZES'] = '4x1'# measure the performance per batch sizefor batch_size in [1, 2, 4, 8, 16]:    USER_BATCH_SIZE = batch_size    print("batch_size: {}, USER_BATCH_SIZE: {}". format(batch_size, USER_BATCH_SIZE))# Load model    compiled_model_dir = 'resnet50_neuron_batch' + str(batch_size)    predictor_inferentia = tf.contrib.predictor.from_saved_model(compiled_model_dir)# Create input from image    img_sgl = image.load_img('kitten_small.jpg', target_size=(224, 224))    img_arr = image.img_to_array(img_sgl)    img_arr2 = np.expand_dims(img_arr, axis=0)    img_arr3 = preprocess_input(np.repeat(img_arr2, USER_BATCH_SIZE, axis=0))    model_feed_dict={'input': img_arr3}# warmup    infa_rslts = predictor_inferentia(model_feed_dict)     num_loops = 1000    num_inferences = num_loops * USER_BATCH_SIZE# Run inference on Neuron Cores, Display results    start = time.time()    with futures.ThreadPoolExecutor(8) as exe:        fut_list = []        for _ in range (num_loops):            fut = exe.submit(predictor_inferentia, model_feed_dict)            fut_list.append(fut)        for fut in fut_list:            infa_rslts = fut.result()    elapsed_time = time.time() - start    print('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
-```
-
-执行该脚本，获得如下结果：
-
-```shell
 import os
 import time
 import numpy as np
@@ -412,6 +422,20 @@ for batch_size in [1, 2, 4, 8, 16]:
     elapsed_time = time.time() - start
 
     print('By Neuron Core - num_inferences:{:>6}[images], elapsed_time:{:6.2f}[sec], Throughput:{:8.2f}[images/sec]'.format(num_inferences, elapsed_time, num_inferences / elapsed_time))
+```
+
+执行该脚本，获得如下结果：
+
+```shell
+By Neuron Core - num_inferences:  1000[images], elapsed_time:  1.32[sec], Throughput:  757.93[images/sec]
+batch_size: 2, USER_BATCH_SIZE: 2
+By Neuron Core - num_inferences:  2000[images], elapsed_time:  1.45[sec], Throughput: 1378.71[images/sec]
+batch_size: 4, USER_BATCH_SIZE: 4
+By Neuron Core - num_inferences:  4000[images], elapsed_time:  2.69[sec], Throughput: 1489.27[images/sec]
+batch_size: 8, USER_BATCH_SIZE: 8
+By Neuron Core - num_inferences:  8000[images], elapsed_time:  5.31[sec], Throughput: 1507.61[images/sec]
+batch_size: 16, USER_BATCH_SIZE: 16
+By Neuron Core - num_inferences: 16000[images], elapsed_time: 10.97[sec], Throughput: 1459.13[images/sec]
 ```
 
 可见随着batch size的提高，吞吐同样有提高，但是到一定性能后，将不在提升，即 batch size 也**不是越大越好**。
