@@ -531,7 +531,8 @@ Neuron TensorFlow Serving 提供了与原生 TensorFlow Serving 一样的API，�
 执行如下命令把2.1生成的模型复制到新的目录。
 
 ```shell
-mkdir -p resnet50_inf1_servecp -rf resnet50_neuron resnet50_inf1_serve/1
+mkdir -p resnet50_inf1_serve
+cp -rf resnet50_neuron resnet50_inf1_serve/1
 ```
 
 执行如下命令启动 tensorflow_model_server_neuron:（注意此处命令是 *tensorflow_model_server_neuron* 不是 *tensorflow_model_server*）
