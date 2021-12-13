@@ -27,7 +27,7 @@ pip install --upgrade torch-neuron neuron-cc[tensorflow] torchvision
 ```shell
 source activate aws_neuron_tensorflow_p36
 pip config set global.extra-index-url https://pip.repos.neuron.amazonaws.com
-pip install --upgrade tensorflow-neuron tensorboard-neuron neuron-cc
+pip install --upgrade tensorflow-neuron==1.15.5.* tensorboard-neuron neuron-cc
 ```
 
 
